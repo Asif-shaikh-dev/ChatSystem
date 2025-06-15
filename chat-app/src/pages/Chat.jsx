@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
 // Replace with your backend URL
-const socket = io('http://192.168.161.103:5000');
+const socket = io('https://chatsystem-backend-qxla.onrender.com');
 
 const Chat = () => {
   const [username, setUsername] = useState('');
