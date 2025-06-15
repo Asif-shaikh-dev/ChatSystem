@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
 // Replace with your backend URL
 const socket = io('https://chatsystem-backend-qxla.onrender.com');
+const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
 
 const Chat = () => {
   const [username, setUsername] = useState('');
@@ -27,7 +28,7 @@ const Chat = () => {
       socket.emit('join_room', room);
       setLoading(true);
       try {
-        const response = await fetch(`http://192.168.161.103:5000/api/messages/${room}`);
+        const response = await fetch(`${backendUrl}/api/messages/${room}`);
         const data = await response.json();
         setMessages(data);
       } catch (error) {
