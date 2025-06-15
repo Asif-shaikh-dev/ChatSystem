@@ -16,7 +16,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: ['http://192.168.161.103:5173', 'http://localhost:5173',process.env.FRONTEND_URL], // replace with your frontend URLs
+        origin: ['http://192.168.161.103:5173', 'http://localhost:5173','https://chatsystem-frontend.onrender.com'], // replace with your frontend URLs
         methods: ['GET', 'POST'],
     },
 });
