@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
 import { Paperclip } from 'lucide-react';
 // Replace with your backend URL/
-// const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
-const backendUrl = 'http://192.168.161.103:5000'; // For local development
+const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
+// const backendUrl = 'http://192.168.161.103:5000'; // For local development
 const socket = io(backendUrl);
 
 const Chat = () => {
