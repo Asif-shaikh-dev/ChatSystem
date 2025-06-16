@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
 import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
-// Replace with your backend URL
+// Replace with your backend URL/
 const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
 // const backendUrl = 'http://192.168.161.103:5000'; // For local development
 const socket = io(backendUrl);
@@ -18,6 +18,7 @@ const Chat = () => {
   const [otherUserTyping, setOtherUserTyping] = useState('');
   const typingTimeout = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [startLoading, setStartLoading] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [touchStartX, setTouchStartX] = useState(0);
   const [touchEndX, setTouchEndX] = useState(0);
@@ -27,7 +28,7 @@ const Chat = () => {
   const joinRoom = async () => {
     if (room.trim() !== '' && username.trim() !== '') {
       socket.emit('join_room', room);
-      setLoading(true);
+      setStartLoading(true);
       try {
         const response = await fetch(`${backendUrl}/api/messages/${room}?username=${username}`);
 
@@ -37,7 +38,7 @@ const Chat = () => {
         console.error('Error fetching previous messages:', error);
       } finally {
         setJoined(true);
-        setLoading(false);
+        setStartLoading(false);
       }
     }
   };
@@ -138,6 +139,7 @@ const Chat = () => {
   // ... your existing functions unchanged ...
 
   const handleDeleteForMe = async (msg) => {
+    setLoading(true);
     await fetch(`${backendUrl}/api/delete-for-me`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -145,9 +147,12 @@ const Chat = () => {
     });
     setMessages((prev) => prev.filter((m) => m._id !== msg._id)); // remove from local state
     setDeleteTarget(null); // clear delete target
+    setLoading(false);
   };
 
   const handleDeleteForEveryone = async (msg) => {
+    setLoading(true);
+
     await fetch(`${backendUrl}/api/delete-for-everyone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,6 +161,8 @@ const Chat = () => {
     setMessages((prev) => prev.filter((m) => m._id !== msg._id));
     // mark as deleted
     setDeleteTarget(null); // clear delete target
+    setLoading(false);
+
   };
 
   // Refresh messages listener
@@ -184,7 +191,13 @@ const Chat = () => {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-300 to-blue-400 relative">
       <div className="bg-white w-full max-w-md shadow-lg rounded-lg p-4 flex flex-col h-[100vh] relative">
         <ChatHeader />
-      
+        {loading && <div className="absolute inset-0 bg-gray-300 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="h-16 w-16 rounded-full border-[8px] border-blue-500 border-t-blue-700 animate-spin shadow-xl"></div>
+        </div>}
+        {startLoading && <div className="absolute inset-0 bg-gray-300 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="w-24 h-24 border-8 border-blue-500 border-t-blue-900 rounded-full animate-spin shadow-2xl"></div>
+
+        </div>}
+        
+
         {!joined ? (
           <div className="flex flex-col items-center gap-4 w-full">
             <input className="border p-2 rounded w-full" placeholder="Enter your name" value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -193,7 +206,9 @@ const Chat = () => {
           </div>
         ) : (
           <>
-            {loading && <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50 rounded-lg"><div className="loader ease-linear rounded-full border-8 border-t-8 border-blue-500 h-16 w-16 animate-spin"></div></div>}
+
+
+
             <div className="flex-1 overflow-y-auto mb-2 border-2 border-gray-300 rounded-lg p-4  overflow-hidden">
               {messages.map((msg, index) => (
                 <div
@@ -213,6 +228,8 @@ const Chat = () => {
                     transition: 'transform 0.2s ease'
                   }}
                 >
+
+
                   <div className={`rounded-lg px-4 py-2 
                     ${msg.user === username ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}
                     break-all whitespace-pre-wrap max-w-[98%] mb-1.5`}
@@ -304,7 +321,8 @@ const Chat = () => {
 
             <div className="flex flex-col gap-3">
               <button
-                className="bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl shadow transition"
+                // disable if not the sender
+                className={`${deleteTarget.user != username ? 'hidden' : ' '}  bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl shadow transition`}
                 onClick={() => {
                   handleDeleteForEveryone(deleteTarget);
                   setShowDeleteOptions(false);
