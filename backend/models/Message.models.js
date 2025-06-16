@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const messageSchema = new mongoose.Schema({
   room: { type: String, required: true, index: true },
   user: { type: String, required: true },
-  text: { type: String, required: true },
+  mediaUrl: { type: String, default: null },
+  mediaType: { type: String, enum: ['image', 'video', null], default: null },
+  text: { type: String, required: false, default: null },
+
   time: { type: Date, default: Date.now },
   replyTo: {
     user: String,

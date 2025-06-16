@@ -1,0 +1,17 @@
+{msg.mediaUrl && msg.mediaType === "image" && (
+                          <img
+                            src={msg.mediaUrl}
+                            alt="uploaded"
+                            className="w-full rounded-md mb-3 object-cover cursor-pointer"
+                            onClick={() => setPreviewMedia({ url: msg.mediaUrl, type: 'image' })}
+                          />
+                        )}
+
+                        {msg.mediaUrl && msg.mediaType === "video" && (
+                          <video controls onClick={() => setPreviewMedia({ url: msg.mediaUrl, type: 'video' })} className="w-full rounded-md mb-3">
+                            <source
+                              src={msg.mediaUrl}
+                              type="video/mp4"
+                            />
+                          </video>
+                        )}

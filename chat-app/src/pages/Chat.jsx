@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
 import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
+import { Paperclip } from 'lucide-react';
 // Replace with your backend URL/
-const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
-// const backendUrl = 'http://192.168.161.103:5000'; // For local development
+// const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
+const backendUrl = 'http://192.168.161.103:5000'; // For local development
 const socket = io(backendUrl);
 
 const Chat = () => {
@@ -23,6 +24,11 @@ const Chat = () => {
   const [touchStartX, setTouchStartX] = useState(0);
   const [touchEndX, setTouchEndX] = useState(0);
   const [swipeOffsets, setSwipeOffsets] = useState({});
+  const [mediaUrl, setMediaUrl] = useState(null);
+  const [mediaType, setMediaType] = useState(null);
+  const [isFileSended, setIsFileSended] = useState(false); // Track if file is sent
+  const [previewMedia, setPreviewMedia] = useState(null);
+
 
 
   const joinRoom = async () => {
@@ -43,22 +49,59 @@ const Chat = () => {
     }
   };
 
-  const handleSend = () => {
-    if (input.trim() === '') return;
+  const handleSend = async () => {
+
+    let mediaUrl = null;
+    let mediaType = null;
+
+    if (file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      setIsFileSended(true); // Set flag to true when file is being sent
+      try {
+        const res = await fetch(`${backendUrl}/api/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await res.json();
+        mediaUrl = data.url;
+        mediaType = data.type;
+
+        setIsFileSended(false);
+      } catch (err) {
+        console.error("Upload failed", err);
+        return;
+      }
+    }
+
+
+    if (input.trim() === '' && !mediaUrl) {
+      return;  // nothing to send
+    }
 
     const messageData = {
       user: username,
-      text: input,
+      text: input || null,
+      mediaUrl,
+      mediaType,
       time: new Date(),
       replyTo: replyingTo ? {
         user: replyingTo.user,
         text: replyingTo.text,
       } : null
     };
+    if (!messageData.text && !messageData.mediaUrl) {
+      return;  // do not emit anything if nothing to send
+    }
+    // setMessages(prev => [...prev, messageData]);
 
     socket.emit('send_message', { room, message: messageData });
     setInput('');
+    setFile(null)
     setReplyingTo(null);  // clear after send
+    setMediaUrl(null);
+    setMediaType(null);
     socket.emit('stop_typing', room);
   };
 
@@ -114,7 +157,7 @@ const Chat = () => {
   };
 
 
-  const handleReply = (msg) => setReplyingTo(msg);
+  // const handleReply = (msg) => setReplyingTo(msg);
 
   useEffect(() => {
     socket.on('receive_message', (data) => setMessages((prev) => [...prev, data]));
@@ -186,17 +229,64 @@ const Chat = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);  // stores message to delete
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
+  function preventWordBreak(str, maxChunkSize = 20) {
+    return str.replace(new RegExp(`(.{${maxChunkSize}})`, 'g'), '$1\u200B');
+  }
+
+
+  const [file, setFile] = useState(null);
+
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+
+    if (selectedFile) {
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+      // console.log("File selected:", selectedFile);
+    } else {
+      setPreviewUrl(null);
+    }
+
+    // Reset input value so that same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null;
+    }
+  };
+
+
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // }, [otherUserTyping]);
+
+
+  useEffect(() => {
+    if (isAtBottom) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 0);
+    }
+  }, [messages,otherUserTyping]);
+  
+
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const scrollRef = useRef(null);
+  
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-300 to-blue-400 relative">
-      <div className="bg-white w-full max-w-md shadow-lg rounded-lg p-4 flex flex-col h-[100vh] relative">
+      <div className="bg-white w-full max-w-md shadow-lg rounded-lg p-2 flex flex-col h-[100vh] relative">
         <ChatHeader />
         {loading && <div className="absolute inset-0 bg-gray-100 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="h-16 w-16 rounded-full border-[8px] border-blue-500 border-t-blue-700 animate-spin shadow-xl"></div>
         </div>}
         {startLoading && <div className="absolute inset-0 bg-gray-100 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="w-24 h-24 border-8 border-blue-500 border-t-blue-900 rounded-full animate-spin shadow-2xl"></div>
 
         </div>}
-        
+
 
         {!joined ? (
           <div className="flex flex-col items-center gap-4 w-full">
@@ -209,7 +299,12 @@ const Chat = () => {
 
 
 
-            <div className="flex-1 overflow-y-auto mb-2 border-2 border-gray-300 rounded-lg p-4  overflow-hidden">
+            <div ref={scrollRef}
+              onScroll={() => {
+                const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+                setIsAtBottom(scrollHeight - scrollTop - clientHeight < 100);
+              }} className="flex-1 overflow-y-auto mb-2 border-2 border-gray-300 rounded-lg p-4  ">
+
               {messages.map((msg, index) => (
                 <div
                   key={index}
@@ -231,20 +326,14 @@ const Chat = () => {
 
 
                   <div className={`rounded-lg px-4 py-2 
-                    ${msg.user === username ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}
+                    ${msg.user === username ? 'bg-green-400 text-white' : 'bg-gray-200 text-gray-800'}
                     break-all whitespace-pre-wrap max-w-[98%] mb-1.5`}
-                    style={{
-                      transform: `translateX(${swipeOffsets[msg._id || msg.text] || 0}px)`,
-                      transition: 'transform 0.2s ease',
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none',
-                      msUserSelect: 'none',
-                    }}
+
                   >
 
 
                     {msg.replyToText && (
-                      <div className="text-xs italic text-gray-500 border-l-4 border-blue-400 pl-2 mb-1">
+                      <div className="text-xs italic break-words w-[80%] text-gray-500 border-l-4 border-blue-400 pl-2 mb-1">
                         Replying to: {msg.replyToText}
                       </div>
                     )}
@@ -256,6 +345,24 @@ const Chat = () => {
                       </div>
                     )}
 
+                    {msg.mediaUrl && msg.mediaType === "image" && (
+                      <img
+                        src={msg.mediaUrl}
+                        alt="uploaded"
+                        className="w-full rounded-md mb-3 object-cover cursor-pointer"
+                        onClick={() => setPreviewMedia({ url: msg.mediaUrl, type: 'image' })}
+                      />
+                    )}
+
+                    {msg.mediaUrl && msg.mediaType === "video" && (
+                      <video controls onClick={() => setPreviewMedia({ url: msg.mediaUrl, type: 'video' })} className="w-full rounded-md mb-3">
+                        <source
+                          src={msg.mediaUrl}
+                          type="video/mp4"
+                        />
+                      </video>
+                    )}
+
                     <div className="font-bold">{msg.user === username ? 'Me' : capitalizeFirstLetter(msg.user.split(' ')[0])}</div>
                     <div className="flex gap-2  items-center ">
                       {msg.text}
@@ -265,11 +372,13 @@ const Chat = () => {
                     </div>
 
 
+
+
                   </div>
+
                 </div>
               ))}
 
-              <div ref={messagesEndRef}></div>
 
               <AnimatePresence>
                 {otherUserTyping && (
@@ -284,6 +393,8 @@ const Chat = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
+              <div ref={messagesEndRef}></div>
+
             </div>
 
 
@@ -297,13 +408,62 @@ const Chat = () => {
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              {previewUrl && file && (
+                <div className="mb-2 flex flex-col items-center">
+                  {file.type.startsWith('image') ? (
+                    <img src={previewUrl} alt="Selected" className="max-h-60 rounded shadow" />
+                  ) : (
+                    <video controls className="max-w-xs rounded shadow">
+                      <source src={previewUrl} type={file.type} />
+                    </video>
+                  )}
+                  <button onClick={() => { setFile(null); setPreviewUrl(null); }} className="text-red-500 mt-1">
+                    Cancel
+                  </button>
+                </div>
+              )}
 
+              <div className="flex sm:flex-row items-center gap-2">
 
-                <input type="text" className="flex-1 border rounded px-4 py-2 focus:outline-none w-full" placeholder="Type a message..." value={input} onChange={handleTyping} onKeyDown={handleEnter} />
-                <button className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 w-full sm:w-auto" onClick={handleSend}>Send</button>
+                {/* File Picker */}
+                <label className="flex items-center justify-center border rounded-lg p-2 cursor-pointer hover:bg-gray-100 transition w-auto">
+                  <Paperclip className=" text-gray-600" />
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+
+                {/* Input Box */}
+                <input
+                  type="text"
+                  className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                  placeholder="Type a message..."
+                  value={input}
+                  onChange={handleTyping}
+                  onKeyDown={handleEnter}
+                />
+
+                {/* Send Button */}
+                <button
+                  className={`bg-blue-500 text-white px-4 py-2 rounded-lg transition w-auto flex items-center justify-center ${(isFileSended || (!input.trim() && !file)) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'
+                    }`}
+                  onClick={handleSend}
+                  disabled={isFileSended}
+                >
+                  {isFileSended ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    'Send'
+                  )}
+                </button>
+
               </div>
             </div>
+
           </>
         )}
       </div>
@@ -349,6 +509,27 @@ const Chat = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {previewMedia && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center" onClick={() => setPreviewMedia(null)}>
+
+          {previewMedia.type === 'image' && (
+            <img src={previewMedia.url} alt="Full Size" className="max-w-full max-h-full rounded-lg shadow-lg" />
+          )}
+
+          {previewMedia.type === 'video' && (
+            <video controls autoPlay className="max-w-full max-h-full rounded-lg shadow-lg">
+              <source src={previewMedia.url} type="video/mp4" />
+            </video>
+          )}
+
+          <button
+            className="absolute top-5 right-5 text-white text-3xl font-bold"
+            onClick={() => setPreviewMedia(null)}
+          >
+            &times;
+          </button>
         </div>
       )}
 

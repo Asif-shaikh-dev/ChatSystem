@@ -3,13 +3,21 @@ const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
+const upload = require('./config/multer'); 
 const Message = require('./models/Message.models');  
 require('dotenv').config();
 
 const app = express();
+const multer = require('multer');
+const path = require('path');
+
+// Create uploads folder if not exist
+const fs = require('fs');
 
 app.use(cors());
 app.use(express.json());
+
+
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
@@ -44,6 +52,8 @@ io.on('connection', (socket) => {
       room,
       user: message.user,
       text: message.text,
+      mediaUrl: message.mediaUrl || null,  // NEW
+      mediaType: message.mediaType || null, // NEW
       replyTo: message.replyTo || null,
       time: message.time || new Date()
     });
@@ -141,6 +151,17 @@ app.post('/api/delete-for-everyone', async (req, res) => {
     res.status(500).json({ error: 'Error deleting for everyone' });
   }
 });
+
+
+
+
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  const file = req.file;
+  const fileUrl = file.path;  // cloudinary auto-generated url
+  const type = file.mimetype.startsWith('image') ? 'image' : 'video';
+  res.json({ url: fileUrl, type: type });
+});
+
 
 const PORT = 5000;
 server.listen(PORT, () => {
