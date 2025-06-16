@@ -8,7 +8,9 @@ const messageSchema = new mongoose.Schema({
   replyTo: {
     user: String,
     text: String
-  }
+  },
+  deletedFor: { type: [String], default: [] },  // array of users who deleted for themselves
+  deletedForEveryone: { type: Boolean, default: false } 
 }, { timestamps: true });
 
 

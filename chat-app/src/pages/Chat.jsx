@@ -3,8 +3,9 @@ import io from 'socket.io-client';
 import { AnimatePresence, motion } from "framer-motion";
 import ChatHeader from './ChatHeader';
 // Replace with your backend URL
-const socket = io('https://chatsystem-backend-qxla.onrender.com');
 const backendUrl = 'https://chatsystem-backend-qxla.onrender.com'; // Update with your backend URL
+// const backendUrl = 'http://192.168.161.103:5000'; // For local development
+const socket = io(backendUrl);
 
 const Chat = () => {
   const [username, setUsername] = useState('');
@@ -28,7 +29,8 @@ const Chat = () => {
       socket.emit('join_room', room);
       setLoading(true);
       try {
-        const response = await fetch(`${backendUrl}/api/messages/${room}`);
+        const response = await fetch(`${backendUrl}/api/messages/${room}?username=${username}`);
+
         const data = await response.json();
         setMessages(data);
       } catch (error) {
@@ -133,19 +135,56 @@ const Chat = () => {
 
   const capitalizeFirstLetter = (str) => (!str ? '' : str.charAt(0).toUpperCase() + str.slice(1));
 
+  // ... your existing functions unchanged ...
+
+  const handleDeleteForMe = async (msg) => {
+    await fetch(`${backendUrl}/api/delete-for-me`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: msg._id, username })
+    });
+    setMessages((prev) => prev.filter((m) => m._id !== msg._id)); // remove from local state
+    setDeleteTarget(null); // clear delete target
+  };
+
+  const handleDeleteForEveryone = async (msg) => {
+    await fetch(`${backendUrl}/api/delete-for-everyone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId: msg._id, room })
+    });
+    setMessages((prev) => prev.filter((m) => m._id !== msg._id));
+    // mark as deleted
+    setDeleteTarget(null); // clear delete target
+  };
+
+  // Refresh messages listener
+  useEffect(() => {
+    socket.on('refresh_messages', () => {
+      socket.emit('get_previous_messages', { room, username });
+    });
+
+    return () => {
+      socket.off('refresh_messages');
+    };
+  }, [room, username]);
+
+  // Get previous messages on join
+  useEffect(() => {
+    if (joined) {
+      socket.emit('get_previous_messages', { room, username });
+    }
+  }, [joined, room, username]);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);  // stores message to delete
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
+
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-300 to-blue-400 relative">
       <div className="bg-white w-full max-w-md shadow-lg rounded-lg p-4 flex flex-col h-[100vh] relative">
         <ChatHeader />
-
-
-
-
-
-
-
-
-
+      
         {!joined ? (
           <div className="flex flex-col items-center gap-4 w-full">
             <input className="border p-2 rounded w-full" placeholder="Enter your name" value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -155,7 +194,7 @@ const Chat = () => {
         ) : (
           <>
             {loading && <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50 rounded-lg"><div className="loader ease-linear rounded-full border-8 border-t-8 border-blue-500 h-16 w-16 animate-spin"></div></div>}
-            <div className="flex-1 overflow-y-auto mb-2 border-2 border-gray-300 rounded-lg p-4">
+            <div className="flex-1 overflow-y-auto mb-2 border-2 border-gray-300 rounded-lg p-4  overflow-hidden">
               {messages.map((msg, index) => (
                 <div
                   key={index}
@@ -164,20 +203,35 @@ const Chat = () => {
                   onTouchMove={(e) => handleTouchMove(e, msg)}
                   onTouchEnd={() => handleTouchEnd(msg)}
                   onClick={() => handleReply(msg)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setDeleteTarget(msg);
+                    setShowDeleteOptions(true);
+                  }}
                   style={{
                     transform: `translateX(${swipeOffsets[msg._id || msg.text] || 0}px)`,
                     transition: 'transform 0.2s ease'
                   }}
-
                 >
-                  <div className={`rounded-lg px-4 py-2 max-w-xs ${msg.user === username ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}`}
-                    style={{ transform: `translateX(${swipeOffsets[msg._id || msg.text] || 0}px)`, transition: 'transform 0.2s ease' }}>
+                  <div className={`rounded-lg px-4 py-2 
+                    ${msg.user === username ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-800'}
+                    break-all whitespace-pre-wrap max-w-[98%] mb-1.5`}
+                    style={{
+                      transform: `translateX(${swipeOffsets[msg._id || msg.text] || 0}px)`,
+                      transition: 'transform 0.2s ease',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      msUserSelect: 'none',
+                    }}
+                  >
+
 
                     {msg.replyToText && (
                       <div className="text-xs italic text-gray-500 border-l-4 border-blue-400 pl-2 mb-1">
                         Replying to: {msg.replyToText}
                       </div>
                     )}
+
                     {msg.replyTo && (
                       <div className="mb-1 px-2 py-1 border-l-4 border-blue-400 bg-blue-100 rounded text-xs text-gray-700">
                         <div className="font-semibold">{msg.replyTo.user === username ? 'Me' : capitalizeFirstLetter(msg.replyTo.user)}</div>
@@ -185,17 +239,16 @@ const Chat = () => {
                       </div>
                     )}
 
-                    {/* Main Message */}
-                   
-                    <div className="font-bold">{msg.user === username ? 'Me' : capitalizeFirstLetter(msg.user .split(' ')[0])}</div>
-                    <div className="flex items-center gap-2">{msg.text}
-                      <div className="text-[10px] text-right">
+                    <div className="font-bold">{msg.user === username ? 'Me' : capitalizeFirstLetter(msg.user.split(' ')[0])}</div>
+                    <div className="flex gap-2  items-center ">
+                      {msg.text}
+                      <div className="text-[0.65rem]  text-right  self-end flex-shrink-0">
                         {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
+
+
                   </div>
-
-
                 </div>
               ))}
 
@@ -214,8 +267,8 @@ const Chat = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-
             </div>
+
 
 
 
@@ -237,6 +290,50 @@ const Chat = () => {
           </>
         )}
       </div>
+      {showDeleteOptions && (
+        <div style={{
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          msUserSelect: 'none',
+        }}
+          className="fixed inset-0 backdrop-blur-md bg-black bg-opacity-10 flex items-center justify-center z-50 transition-all duration-300
+">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl w-80 text-center">
+            <h2 className="text-xl font-semibold text-gray-800 mb-3">Delete Message</h2>
+            <p className="text-gray-600 mb-6">Are you sure you want to delete this message?</p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                className="bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl shadow transition"
+                onClick={() => {
+                  handleDeleteForEveryone(deleteTarget);
+                  setShowDeleteOptions(false);
+                }}
+              >
+                Delete for Everyone
+              </button>
+
+              <button
+                className="bg-yellow-400 hover:bg-yellow-500 text-white py-2 rounded-xl shadow transition"
+                onClick={() => {
+                  handleDeleteForMe(deleteTarget);
+                  setShowDeleteOptions(false);
+                }}
+              >
+                Delete for Me
+              </button>
+
+              <button
+                className="text-gray-500 mt-2 hover:text-gray-700 transition underline"
+                onClick={() => setShowDeleteOptions(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
