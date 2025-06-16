@@ -191,9 +191,9 @@ const Chat = () => {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-300 to-blue-400 relative">
       <div className="bg-white w-full max-w-md shadow-lg rounded-lg p-4 flex flex-col h-[100vh] relative">
         <ChatHeader />
-        {loading && <div className="absolute inset-0 bg-gray-300 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="h-16 w-16 rounded-full border-[8px] border-blue-500 border-t-blue-700 animate-spin shadow-xl"></div>
+        {loading && <div className="absolute inset-0 bg-gray-100 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="h-16 w-16 rounded-full border-[8px] border-blue-500 border-t-blue-700 animate-spin shadow-xl"></div>
         </div>}
-        {startLoading && <div className="absolute inset-0 bg-gray-300 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="w-24 h-24 border-8 border-blue-500 border-t-blue-900 rounded-full animate-spin shadow-2xl"></div>
+        {startLoading && <div className="absolute inset-0 bg-gray-100 bg-opacity-10 flex items-center justify-center z-50 rounded-lg"><div className="w-24 h-24 border-8 border-blue-500 border-t-blue-900 rounded-full animate-spin shadow-2xl"></div>
 
         </div>}
         
